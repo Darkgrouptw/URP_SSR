@@ -51,12 +51,27 @@ namespace URPSSR
             if (cameraData.renderer.cameraColorTargetHandle == null)
                 return;
             CommandBuffer cmd = CommandBufferPool.Get();
-            using (new ProfilingScope(cmd, profilingSampler))
-            {
-            }
 
-            context.ExecuteCommandBuffer(cmd);
-            cmd.Clear();
+            DrawingSettings drawSettings = RenderingUtils.CreateDrawingSettings(m_ShaderTagIdList, ref renderingData, SortingCriteria.CommonOpaque);
+			drawSettings.overrideShader = _thinGbufferShader;
+			RenderTextureDescriptor desc = new RenderTextureDescriptor(
+				cameraData.cameraTargetDescriptor.width,
+				cameraData.cameraTargetDescriptor.height);
+			desc.colorFormat = RenderTextureFormat.R8;
+			//use depth pre-pass 
+			desc.depthBufferBits = 0;
+			RTHandle destination = null;
+			RenderingUtils.ReAllocateHandleIfNeeded(ref destination, desc, FilterMode.Point, TextureWrapMode.Clamp, name: "_SsrThinGBuffer");
+			ConfigureTarget(destination, renderingData.cameraData.renderer.cameraDepthTargetHandle);
+
+			using (new ProfilingScope(cmd, profilingSampler))
+			{
+				context.DrawRenderers(renderingData.cullResults, ref drawSettings, ref m_filteringSettings);
+			}
+
+			cmd.SetGlobalTexture(_ssrThinGBufferId, destination);
+			context.ExecuteCommandBuffer(cmd);
+			cmd.Clear();
             CommandBufferPool.Release(cmd);
         }
 
